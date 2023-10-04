@@ -1,5 +1,5 @@
 ![](https://img.shields.io/badge/unity-2021%20or%20later-green)
-[![](https://img.shields.io/github/license/natpuncher/tomato-ecs)](https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE.md)
+[![](https://img.shields.io/github/license/natpuncher/tomato-ecs)](https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-blue.svg?style=flat-square)](https://makeapullrequest.com)
 
 # tomato-ecs
@@ -142,6 +142,13 @@ public sealed class ReadyToAttackSystem : IInitializeSystem, IExecuteSystem
 		{
 		}
 	}
+}
+
+public void Update(double delta)
+{
+	_battleContext.DeltaTime = delta;
+	_battleEcsRunner.Execute();
+	_battleContext.UpdateReactiveComponents();
 }
 ```
 ```c#
