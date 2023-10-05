@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace npg.tomato_ecs.Groups
+namespace npg.tomatoecs.Groups
 {
 	internal sealed class Matcher : IDisposable
 	{
@@ -60,9 +60,9 @@ namespace npg.tomato_ecs.Groups
 
 		private bool IsIncluded(uint entityId)
 		{
-			foreach (var componentId in _include)
+			for (var index = 0; index < _include.Count; index++)
 			{
-				var components = _context.GetComponents(componentId);
+				var components = _context.GetComponents(_include[index]);
 				if (!components.HasComponent(entityId))
 				{
 					return false;
@@ -74,9 +74,9 @@ namespace npg.tomato_ecs.Groups
 
 		private bool IsExcluded(uint entityId)
 		{
-			foreach (var componentId in _exclude)
+			for (var index = 0; index < _exclude.Count; index++)
 			{
-				var components = _context.GetComponents(componentId);
+				var components = _context.GetComponents(_exclude[index]);
 				if (components.HasComponent(entityId))
 				{
 					return true;

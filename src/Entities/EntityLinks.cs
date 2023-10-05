@@ -1,8 +1,8 @@
 using System;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Entities
 {
-	internal class EntityLinks
+	public class EntityLinks
 	{
 		private bool[] _links;
 

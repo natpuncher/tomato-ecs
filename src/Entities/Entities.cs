@@ -1,19 +1,18 @@
 using System;
-using System.Collections.Generic;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Entities
 {
 	internal sealed class Entities : IDisposable
 	{
 		private Entity[] _entities;
-		private uint _entityCount;
+		private uint _count;
 
 		private uint[] _removedEntities;
 		private int _removedEntitiesCount;
 
 		internal int Capacity { get; private set; }
 
-		internal IReadOnlyCollection<Entity> RawEntities => _entities;
+		internal Entity[] Raw => _entities;
 
 		internal Entities(int capacity)
 		{
@@ -21,22 +20,22 @@ namespace npg.tomato_ecs
 			_entities = new Entity[Capacity];
 			_removedEntities = new uint[Capacity];
 		}
-
+	
 		internal Entity CreateEntity(Context context)
 		{
-			var entityIndex = _entityCount;
+			var entityIndex = _count;
 			if (_removedEntitiesCount > 0)
 			{
 				_removedEntitiesCount--;
 				entityIndex = _removedEntities[_removedEntitiesCount];
 			}
 
-			if (_entityCount == _entities.Length)
+			if (_count == _entities.Length)
 			{
 				Resize();
 			}
 
-			_entityCount++;
+			_count++;
 
 			ref var entity = ref _entities[entityIndex];
 			entity.Context = context;
@@ -51,7 +50,7 @@ namespace npg.tomato_ecs
 
 		internal void RemoveEntity(uint entityId)
 		{
-			_entityCount--;
+			_count--;
 			if (_removedEntitiesCount == _removedEntities.Length)
 			{
 				Array.Resize(ref _removedEntities, _removedEntitiesCount << 1);
@@ -65,7 +64,7 @@ namespace npg.tomato_ecs
 		public void Dispose()
 		{
 			_entities.Clear();
-			_entityCount = 0;
+			_count = 0;
 			_removedEntities.Clear();
 			_removedEntitiesCount = 0;
 		}

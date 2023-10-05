@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using npg.tomatoecs.Entities;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Components
 {
 	public sealed class Components<TComponent> : InternalComponents where TComponent : struct
 	{
@@ -20,7 +21,7 @@ namespace npg.tomato_ecs
 
 		public int Count => _componentCount;
 
-		internal Components(Entities entities, EntityLinker entityLinker, int id, int capacity)
+		internal Components(Entities.Entities entities, EntityLinker entityLinker, int id, int capacity)
 		{
 			Id = id;
 			_entityLinker = entityLinker;
@@ -62,6 +63,16 @@ namespace npg.tomato_ecs
 			}
 
 			return _linkedBuffer.Buffer;
+		}
+
+		public Enumerator GetEnumerator()
+		{
+			return new Enumerator(_components, _componentCount);
+		}
+
+		public LinkedComponents<TComponent> Linked(Entity entity)
+		{
+			return new LinkedComponents<TComponent>(_components, _componentToEntityId, _componentCount, _entityLinker.GetLinks(entity.Id));
 		}
 
 		public override void Dispose()
@@ -144,6 +155,7 @@ namespace npg.tomato_ecs
 				Array.Resize(ref components, componentsLength);
 				Array.Resize(ref entityIds, componentsLength);
 			}
+
 			Array.Copy(_components, components, componentsLength);
 			Array.Copy(_componentToEntityId, entityIds, componentsLength);
 
@@ -152,6 +164,7 @@ namespace npg.tomato_ecs
 			{
 				Array.Resize(ref componentIndexes, indexesLength);
 			}
+
 			Array.Copy(_entityIdToComponent, componentIndexes, indexesLength);
 		}
 
@@ -196,6 +209,27 @@ namespace npg.tomato_ecs
 			}
 
 			Array.Resize(ref _entityIdToComponent, newSize);
+		}
+
+		public struct Enumerator
+		{
+			private readonly TComponent[] _components;
+			private readonly int _count;
+			private int _index;
+
+			public Enumerator(TComponent[] components, int count)
+			{
+				_components = components;
+				_count = count;
+				_index = -1;
+			}
+
+			public TComponent Current => _components[_index];
+
+			public bool MoveNext()
+			{
+				return ++_index < _count;
+			}
 		}
 	}
 }

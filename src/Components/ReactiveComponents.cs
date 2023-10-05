@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
+using npg.tomatoecs.Entities;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Components
 {
 	public sealed class ReactiveComponents<TComponent> : InternalReactiveComponents, IDisposable
 		where TComponent : struct, IEquatable<TComponent>
 	{
 		private readonly EqualityComparer<TComponent> _equalityComparer = EqualityComparer<TComponent>.Default;
 		private readonly Components<TComponent> _actualComponents;
-		private readonly Entities _entities;
+		private readonly Entities.Entities _entities;
 
 		private TComponent[] _previousComponents;
 		private uint[] _componentToEntityId;
@@ -23,7 +24,7 @@ namespace npg.tomato_ecs
 
 		internal Components<TComponent> ActualComponents => _actualComponents;
 
-		internal ReactiveComponents(Components<TComponent> actualComponents, Entities entities, int capacity)
+		internal ReactiveComponents(Components<TComponent> actualComponents, Entities.Entities entities, int capacity)
 		{
 			_actualComponents = actualComponents;
 			_entities = entities;

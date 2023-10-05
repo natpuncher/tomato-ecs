@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
-using npg.tomato_ecs.Groups;
+using npg.tomatoecs.Components;
+using npg.tomatoecs.Entities;
+using npg.tomatoecs.Groups;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs
 {
 	public class Context : IDisposable
 	{
 		private const int DefaultCapacity = 32;
 
-		private readonly Entities _entities;
+		private readonly Entities.Entities _entities;
 		private readonly List<InternalComponents> _components;
 		private readonly Dictionary<Type, InternalComponents> _componentsMap;
 		private readonly List<InternalReactiveComponents> _reactiveComponents;
@@ -18,7 +20,7 @@ namespace npg.tomato_ecs
 
 		public Context(int entityCapacity = DefaultCapacity, int componentCapacity = DefaultCapacity)
 		{
-			_entities = new Entities(entityCapacity);
+			_entities = new Entities.Entities(entityCapacity);
 
 			_components = new List<InternalComponents>(componentCapacity);
 			_componentsMap = new Dictionary<Type, InternalComponents>(componentCapacity);
@@ -38,6 +40,11 @@ namespace npg.tomato_ecs
 			return _entities.GetEntity(id);
 		}
 
+		public Entity[] GetAllEntities()
+		{
+			return _entities.Raw;
+		}
+	
 		public Components<TComponent> GetComponents<TComponent>() where TComponent : struct
 		{
 			var type = typeof(TComponent);

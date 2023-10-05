@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
+using npg.tomatoecs.Entities;
 
-namespace npg.tomato_ecs.Groups
+namespace npg.tomatoecs.Groups
 {
 	public sealed class Group : IDisposable
 	{
 		private const int DefaultGroupCapacity = 32;
 
 		private readonly Matcher _matcher;
-		private readonly Entities _entities;
+		private readonly Entities.Entities _entities;
 		private readonly EntityLinker _entityLinker;
 		private readonly HashSet<uint> _entityIds;
 		private readonly EntityBuffer _entityBuffer;
@@ -16,7 +17,7 @@ namespace npg.tomato_ecs.Groups
 
 		public int Count => _entityIds.Count;
 
-		internal Group(Matcher matcher, Entities entities, EntityLinker entityLinker)
+		internal Group(Matcher matcher, Entities.Entities entities, EntityLinker entityLinker)
 		{
 			_entityIds = new HashSet<uint>(DefaultGroupCapacity);
 			_entityBuffer = new EntityBuffer(entities, DefaultGroupCapacity);
@@ -93,7 +94,7 @@ namespace npg.tomato_ecs.Groups
 
 		private void Initialize()
 		{
-			foreach (var entity in _entities.RawEntities)
+			foreach (var entity in _entities.Raw)
 			{
 				if (!entity.IsActive)
 				{

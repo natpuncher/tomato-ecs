@@ -1,6 +1,7 @@
 using System;
+using npg.tomatoecs.Components;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Entities
 {
 	public struct Entity : IEquatable<Entity>
 	{

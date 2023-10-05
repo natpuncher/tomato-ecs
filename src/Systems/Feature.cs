@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace npg.tomato_ecs.Systems
+namespace npg.tomatoecs.Systems
 {
 	public class Feature : IInitializeSystem, IExecuteSystem, ITeardownSystem
 	{

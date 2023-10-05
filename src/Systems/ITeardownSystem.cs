@@ -1,4 +1,4 @@
-namespace npg.tomato_ecs.Systems
+namespace npg.tomatoecs.Systems
 {
 	public interface ITeardownSystem : ISystem
 	{

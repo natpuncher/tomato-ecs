@@ -1,4 +1,4 @@
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Components
 {
 	public abstract class InternalReactiveComponents
 	{

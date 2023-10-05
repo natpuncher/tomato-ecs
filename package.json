@@ -2,10 +2,10 @@
   "name": "com.npg.tomato-ecs",
   "displayName": "npg.tomato-ecs",
   "description": "Ecs framework for Unity mostly for tomato games",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "unity": "2021.3",
   "license": "MIT",
-  "licensesUrl": "https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE.md",
+  "licensesUrl": "https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE",
   "documentationUrl": "https://github.com/natpuncher/tomato-ecs/blob/master/README.md",
   "changelogUrl": "https://github.com/natpuncher/tomato-ecs/releases",
   "repository": {

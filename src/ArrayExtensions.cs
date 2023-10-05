@@ -1,6 +1,6 @@
 using System;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs
 {
 	public static class ArrayExtensions
 	{

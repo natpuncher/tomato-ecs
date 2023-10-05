@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace npg.tomato_ecs
+namespace npg.tomatoecs.Entities
 {
 	internal class EntityBuffer
 	{

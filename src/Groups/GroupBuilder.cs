@@ -1,4 +1,4 @@
-namespace npg.tomato_ecs.Groups
+namespace npg.tomatoecs.Groups
 {
 	public sealed class GroupBuilder
 	{

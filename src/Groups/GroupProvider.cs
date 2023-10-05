@@ -1,20 +1,21 @@
 using System;
 using System.Collections.Generic;
+using npg.tomatoecs.Entities;
 
-namespace npg.tomato_ecs.Groups
+namespace npg.tomatoecs.Groups
 {
 	internal sealed class GroupProvider : IDisposable
 	{
 		private const int DefaultCapacity = 4;
 
-		private readonly Entities _entities;
+		private readonly Entities.Entities _entities;
 		private readonly Context _context;
 		private readonly EntityLinker _entityLinker;
 		private readonly Stack<GroupBuilder> _groupBuilders;
 		private readonly Stack<Matcher> _matchers;
 		private readonly Dictionary<Matcher, Group> _groups;
 
-		internal GroupProvider(Entities entities, Context context, EntityLinker entityLinker)
+		internal GroupProvider(Entities.Entities entities, Context context, EntityLinker entityLinker)
 		{
 			_entities = entities;
 			_context = context;

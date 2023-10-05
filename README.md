@@ -1,5 +1,5 @@
 ![](https://img.shields.io/badge/unity-2021%20or%20later-green)
-[![](https://img.shields.io/github/license/natpuncher/tomato-ecs)](https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE.md)
+[![](https://img.shields.io/github/license/natpuncher/tomato-ecs)](https://github.com/natpuncher/tomato-ecs/blob/master/LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-blue.svg?style=flat-square)](https://makeapullrequest.com)
 
 # tomato-ecs
@@ -91,6 +91,13 @@ public sealed class DamageApplySystem : IInitializeSystem, IExecuteSystem
 }
 ```
 ```c#
+public void UpdateEcs(double delta)
+{
+	_battleContext.DeltaTime = delta;
+	_battleContext.UpdateReactiveComponents();
+	_battleEcsRunner.Execute();
+}
+
 public class UpdateUnitHealthSystem : IInitializeSystem, IExecuteSystem
 {
 	private readonly BattleContext _battleContext;
@@ -156,4 +163,44 @@ foreach(var evadeAbilityEntity in evade.GetLinkedEntities(unitEntity))
 {
     // evadeAbilityEntity == abilityEntity 
 }
+```
+```c#
+	public void Initialize()
+	{
+		_damageDealt = _battleContext.GetComponents<DamageDealtComponent>();
+	}
+
+	public void Execute()
+	{
+		foreach (var damageDealt in _damageDealt)
+		{
+			CreateView(damageDealt.Source, damageDealt.Target, damageDealt.Amount);
+		}
+	}
+
+
+```
+
+```c#
+	public void Initialize()
+	{
+		_damage = _battleContext.GetComponents<DamageComponent>();
+
+		_armor = _battleContext.GetComponents<ArmorStatComponent>();
+	}
+
+	public void Execute()
+	{
+		foreach (var damageEntity in _damage.GetEntities())
+		{
+			ref var damageComponent = ref damageEntity.GetComponent(_damage);
+			var targetEntity = _battleContext.GetEntity(damageComponent.Target);
+
+			var armor = 0;
+			foreach (var armorComponent in _armor.Linked(targetEntity))
+			{
+				armor += armorComponent.Amount;
+			}
+		}
+	}
 ```
