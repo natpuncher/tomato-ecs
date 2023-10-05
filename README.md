@@ -150,6 +150,13 @@ public sealed class ReadyToAttackSystem : IInitializeSystem, IExecuteSystem
 		}
 	}
 }
+
+public void Update(double delta)
+{
+	_battleContext.DeltaTime = delta;
+	_battleEcsRunner.Execute();
+	_battleContext.UpdateReactiveComponents();
+}
 ```
 ```c#
 var unitEntity = context.CreateEntity();
