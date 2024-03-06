@@ -7,8 +7,9 @@ namespace npg.tomatoecs.Groups
 	{
 		private const int DefaultCapacity = 4;
 
-		private readonly List<int> _include = new(DefaultCapacity);
-		private readonly List<int> _exclude = new(DefaultCapacity);
+		private readonly List<int> _all = new(DefaultCapacity);
+		private readonly List<int> _any = new(DefaultCapacity);
+		private readonly List<int> _none = new(DefaultCapacity);
 
 		private readonly Context _context;
 
@@ -18,39 +19,33 @@ namespace npg.tomatoecs.Groups
 		internal event Action<uint> OnEntityAdded;
 		internal event Action<uint> OnEntityRemoved;
 
-		public Matcher(Context context)
+		internal Matcher(Context context)
 		{
 			_context = context;
 		}
 
-		internal void Include(int componentId)
+		internal void All(int componentId)
 		{
-			_include.Add(componentId);
+			_all.Add(componentId);
 			_hashInitialized = false;
 		}
 
-		internal void Exclude(int componentId)
+		internal void Any(int componentId)
 		{
-			_exclude.Add(componentId);
+			_any.Add(componentId);
+			_hashInitialized = false;
+		}
+
+		internal void None(int componentId)
+		{
+			_none.Add(componentId);
 			_hashInitialized = false;
 		}
 
 		internal void Build()
 		{
 			GetHashCode();
-			foreach (var componentId in _include)
-			{
-				var components = _context.GetComponents(componentId);
-				components.OnAdded += CheckEntityAdd;
-				components.OnRemoved += CheckEntityRemove;
-			}
-
-			foreach (var componentId in _exclude)
-			{
-				var components = _context.GetComponents(componentId);
-				components.OnAdded += CheckEntityRemove;
-				components.OnRemoved += CheckEntityAdd;
-			}
+			Subscribe();
 		}
 
 		internal bool Match(uint entityId)
@@ -60,9 +55,14 @@ namespace npg.tomatoecs.Groups
 
 		private bool IsIncluded(uint entityId)
 		{
-			for (var index = 0; index < _include.Count; index++)
+			return CheckAll(entityId) && CheckAny(entityId);
+		}
+
+		private bool CheckAll(uint entityId)
+		{
+			for (var index = 0; index < _all.Count; index++)
 			{
-				var components = _context.GetComponents(_include[index]);
+				var components = _context.GetComponents(_all[index]);
 				if (!components.HasComponent(entityId))
 				{
 					return false;
@@ -72,11 +72,30 @@ namespace npg.tomatoecs.Groups
 			return true;
 		}
 
+		private bool CheckAny(uint entityId)
+		{
+			if (_any.Count == 0)
+			{
+				return true;
+			}
+
+			for (var index = 0; index < _any.Count; index++)
+			{
+				var components = _context.GetComponents(_any[index]);
+				if (components.HasComponent(entityId))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		private bool IsExcluded(uint entityId)
 		{
-			for (var index = 0; index < _exclude.Count; index++)
+			for (var index = 0; index < _none.Count; index++)
 			{
-				var components = _context.GetComponents(_exclude[index]);
+				var components = _context.GetComponents(_none[index]);
 				if (components.HasComponent(entityId))
 				{
 					return true;
@@ -108,9 +127,62 @@ namespace npg.tomatoecs.Groups
 
 		public void Dispose()
 		{
-			_include.Clear();
-			_exclude.Clear();
+			_all.Clear();
+			_none.Clear();
 			_hashInitialized = false;
+		}
+
+		private void Subscribe()
+		{
+			var add = new HashSet<int>();
+			var remove = new HashSet<int>();
+			foreach (var componentId in _all)
+			{
+				var components = _context.GetComponents(componentId);
+				if (!add.Contains(componentId))
+				{
+					add.Add(componentId);
+					components.OnAdded += CheckEntityAdd;
+				}
+
+				if (!remove.Contains(componentId))
+				{
+					remove.Add(componentId);
+					components.OnRemoved += CheckEntityRemove;
+				}
+			}
+
+			foreach (var componentId in _any)
+			{
+				var components = _context.GetComponents(componentId);
+				if (!add.Contains(componentId))
+				{
+					add.Add(componentId);
+					components.OnAdded += CheckEntityAdd;
+				}
+
+				if (!remove.Contains(componentId))
+				{
+					remove.Add(componentId);
+					components.OnRemoved += CheckEntityRemove;
+				}
+			}
+
+			foreach (var componentId in _none)
+			{
+				var components = _context.GetComponents(componentId);
+				if (!add.Contains(componentId))
+				{
+					add.Add(componentId);
+					components.OnRemoved += CheckEntityAdd;
+				}
+
+				if (!remove.Contains(componentId))
+				{
+					remove.Add(componentId);
+					components.OnAdded += CheckEntityRemove;
+				}
+			}
 		}
 
 		public override int GetHashCode()
@@ -120,37 +192,52 @@ namespace npg.tomatoecs.Groups
 				return _hash;
 			}
 
-			_include.Sort();
-			_exclude.Sort();
-
-			unchecked
-			{
-				var result = _include.Count * 17 + _exclude.Count * 23;
-				foreach (var id in _include)
-				{
-					result = result * 393241 + id;
-				}
-
-				foreach (var id in _exclude)
-				{
-					result = result * 393241 - id;
-				}
-
-				_hash = result;
-				_hashInitialized = true;
-				return result;
-			}
+			_hash = HashCodeUtils.Calculate(_all, _any, _none);
+			_hashInitialized = true;
+			return _hash;
 		}
 
 		public override bool Equals(object obj)
 		{
-			if (obj == null || obj.GetType() != GetType() || obj.GetHashCode() != GetHashCode())
+			var matcher = obj as Matcher;
+			if (matcher == null)
 			{
 				return false;
 			}
 
-			var matcher = (Matcher)obj;
-			return EqualIndexes(_include, matcher._include) && EqualIndexes(_exclude, matcher._exclude);
+			return EqualIndexes(_all, matcher._all) && EqualIndexes(_any, matcher._any) && EqualIndexes(_none, matcher._none);
+		}
+
+		internal void Lock()
+		{
+			Lock(_all);
+			Lock(_any);
+			Lock(_none);
+		}
+
+		internal void Unlock()
+		{
+			Unlock(_all);
+			Unlock(_any);
+			Unlock(_none);
+		}
+
+		private void Lock(List<int> componentIds)
+		{
+			foreach (var componentId in componentIds)
+			{
+				var components = _context.GetComponents(componentId);
+				components.Lock();
+			}
+		}
+
+		private void Unlock(List<int> componentIds)
+		{
+			foreach (var componentId in componentIds)
+			{
+				var components = _context.GetComponents(componentId);
+				components.Unlock();
+			}
 		}
 
 		private static bool EqualIndexes(List<int> source, List<int> target)

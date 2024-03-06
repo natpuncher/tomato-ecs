@@ -42,7 +42,7 @@ namespace npg.tomatoecs.Entities
 		}
 
 		public ref TComponent GetComponent<TComponent>(ReactiveComponents<TComponent> reactiveComponents)
-			where TComponent : struct, IEquatable<TComponent>
+			where TComponent : struct, IReactiveComponent<TComponent>
 		{
 			return ref reactiveComponents.ActualComponents.GetComponent(Id);
 		}
@@ -58,13 +58,13 @@ namespace npg.tomatoecs.Entities
 		}
 
 		public void RemoveComponent<TComponent>(ReactiveComponents<TComponent> reactiveComponents)
-			where TComponent : struct, IEquatable<TComponent>
+			where TComponent : struct, IReactiveComponent<TComponent>
 		{
 			reactiveComponents.ActualComponents.RemoveComponent(Id);
 		}
 
 		public ref TComponent GetPreviousComponent<TComponent>(ReactiveComponents<TComponent> reactiveComponents)
-			where TComponent : struct, IEquatable<TComponent>
+			where TComponent : struct, IReactiveComponent<TComponent>
 		{
 			return ref reactiveComponents.GetPreviousComponent(Id);
 		}

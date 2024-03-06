@@ -20,7 +20,7 @@ namespace npg.tomatoecs.Entities
 			_entities = new Entity[Capacity];
 			_removedEntities = new uint[Capacity];
 		}
-	
+
 		internal Entity CreateEntity(Context context)
 		{
 			var entityIndex = _count;

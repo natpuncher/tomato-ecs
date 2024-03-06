@@ -12,7 +12,7 @@ namespace npg.tomatoecs.Groups
 		private readonly Context _context;
 		private readonly EntityLinker _entityLinker;
 		private readonly Stack<GroupBuilder> _groupBuilders;
-		private readonly Stack<Matcher> _matchers;
+		private readonly Stack<Matcher> _freeMatchers;
 		private readonly Dictionary<Matcher, Group> _groups;
 
 		internal GroupProvider(Entities.Entities entities, Context context, EntityLinker entityLinker)
@@ -22,13 +22,19 @@ namespace npg.tomatoecs.Groups
 			_entityLinker = entityLinker;
 
 			_groupBuilders = new Stack<GroupBuilder>(DefaultCapacity);
-			_matchers = new Stack<Matcher>(DefaultCapacity);
+			_freeMatchers = new Stack<Matcher>(DefaultCapacity);
 			_groups = new Dictionary<Matcher, Group>(DefaultCapacity);
 		}
 
-		internal GroupBuilder GetGroupBuilder<TComponent>() where TComponent : struct
+		internal GroupBuilder GetGroupBuilder()
 		{
-			return GetGroupBuilder().Include<TComponent>();
+			if (!_groupBuilders.TryPop(out var groupBuilder))
+			{
+				groupBuilder = new GroupBuilder(_context, this);
+			}
+
+			groupBuilder.Initialize(GetMatcher());
+			return groupBuilder;
 		}
 
 		internal void ReturnGroupBuilder(GroupBuilder groupBuilder)
@@ -41,7 +47,7 @@ namespace npg.tomatoecs.Groups
 			if (_groups.TryGetValue(matcher, out var group))
 			{
 				matcher.Dispose();
-				_matchers.Push(matcher);
+				_freeMatchers.Push(matcher);
 				return group;
 			}
 
@@ -58,20 +64,9 @@ namespace npg.tomatoecs.Groups
 			}
 		}
 
-		private GroupBuilder GetGroupBuilder()
-		{
-			if (!_groupBuilders.TryPop(out var groupBuilder))
-			{
-				groupBuilder = new GroupBuilder(_context, this);
-			}
-
-			groupBuilder.Initialize(GetMatcher());
-			return groupBuilder;
-		}
-
 		private Matcher GetMatcher()
 		{
-			if (!_matchers.TryPop(out var mather))
+			if (!_freeMatchers.TryPop(out var mather))
 			{
 				mather = new Matcher(_context);
 			}

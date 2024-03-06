@@ -17,16 +17,22 @@ namespace npg.tomatoecs.Groups
 		{
 			_matcher = matcher;
 		}
-	
-		public GroupBuilder Include<TComponent>() where TComponent : struct
+
+		public GroupBuilder All<TComponent>() where TComponent : struct
 		{
-			_matcher.Include(_context.GetComponents<TComponent>().Id);
+			_matcher.All(_context.GetComponents<TComponent>().Id);
 			return this;
 		}
 
-		public GroupBuilder Exclude<TComponent>() where TComponent : struct
+		public GroupBuilder Any<TComponent>() where TComponent : struct
 		{
-			_matcher.Exclude(_context.GetComponents<TComponent>().Id);
+			_matcher.Any(_context.GetComponents<TComponent>().Id);
+			return this;
+		}
+
+		public GroupBuilder None<TComponent>() where TComponent : struct
+		{
+			_matcher.None(_context.GetComponents<TComponent>().Id);
 			return this;
 		}
 

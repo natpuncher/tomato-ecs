@@ -6,7 +6,8 @@ namespace npg.tomatoecs.Components
 {
 	public sealed class Components<TComponent> : InternalComponents where TComponent : struct
 	{
-		private readonly EntityLinker _entityLinker;
+		private readonly ComponentsIterator<TComponent> _iterator;
+		private readonly DelayedOperations<TComponent> _delayedOperations;
 		internal readonly int Id;
 		private readonly int _componentsCapacity;
 
@@ -15,64 +16,63 @@ namespace npg.tomatoecs.Components
 		private int[] _entityIdToComponent;
 		private int _componentCount;
 
-		private readonly EntityBuffer _entityBuffer;
-		private readonly EntityBuffer _linkedBuffer;
-		internal int Version { get; private set; }
+		private readonly EntityBuffer _added;
+		private readonly EntityBuffer _removed;
 
-		public int Count => _componentCount;
+		public int Count => _componentCount - _delayedOperations.AddedCount;
 
 		internal Components(Entities.Entities entities, EntityLinker entityLinker, int id, int capacity)
 		{
 			Id = id;
-			_entityLinker = entityLinker;
+			_delayedOperations = new DelayedOperations<TComponent>(this);
+			_iterator = new ComponentsIterator<TComponent>(this, _delayedOperations, entityLinker, entities);
 			_entityIdToComponent = new int[capacity];
-			_entityBuffer = new EntityBuffer(entities, capacity);
-			_linkedBuffer = new EntityBuffer(entities, capacity);
+			_added = new EntityBuffer(entities, capacity);
+			_removed = new EntityBuffer(entities, capacity);
 			_componentsCapacity = capacity;
 		}
 
-		public List<Entity> GetEntities()
+		public ComponentsIterator<TComponent>.ComponentEnumerator GetEnumerator()
 		{
-			if (_entityBuffer.IsValid)
-			{
-				return _entityBuffer.Buffer;
-			}
-
-			_entityBuffer.Update();
-			for (var i = 0; i < _componentCount; i++)
-			{
-				_entityBuffer.Add(_componentToEntityId[i] - 1);
-			}
-
-			return _entityBuffer.Buffer;
+			return _iterator.GetComponentEnumerator();
 		}
 
-		public List<Entity> GetLinkedEntities(Entity entity)
+		public ComponentsIterator<TComponent>.LinkedComponentEnumerator LinkedTo(Entity entity)
 		{
-			_linkedBuffer.Update();
-			var links = _entityLinker.GetLinks(entity.Id);
-			for (var i = 0; i < _componentCount; i++)
-			{
-				var entityId = _componentToEntityId[i] - 1;
-				if (!links.Has(entityId))
-				{
-					continue;
-				}
-
-				_linkedBuffer.Add(entityId);
-			}
-
-			return _linkedBuffer.Buffer;
+			return _iterator.GetLinkedComponentEnumerator(entity.Id);
 		}
 
-		public Enumerator GetEnumerator()
+		public ComponentsIterator<TComponent>.EntityEnumerator GetEntities()
 		{
-			return new Enumerator(_components, _componentCount);
+			return _iterator.GetEntityEnumerator();
 		}
 
-		public LinkedComponents<TComponent> Linked(Entity entity)
+		public ComponentsIterator<TComponent>.LinkedEntityEnumerator GetLinkedEntities(Entity entity)
 		{
-			return new LinkedComponents<TComponent>(_components, _componentToEntityId, _componentCount, _entityLinker.GetLinks(entity.Id));
+			return _iterator.GetLinkedEntityEnumerator(entity.Id);
+		}
+
+		public List<Entity> Added()
+		{
+			return _added.Buffer;
+		}
+
+		public List<Entity> Removed()
+		{
+			return _removed.Buffer;
+		}
+
+		public ref TComponent this[int index] => ref _components[index];
+
+		internal uint GetEntityId(int index)
+		{
+			return _componentToEntityId[index] - 1;
+		}
+
+		internal override void Update()
+		{
+			_added.Update();
+			_removed.Update();
 		}
 
 		public override void Dispose()
@@ -85,7 +85,20 @@ namespace npg.tomatoecs.Components
 
 			_entityIdToComponent.Clear();
 			_componentCount = 0;
-			_entityBuffer.Invalidate();
+			_added.Update();
+			_removed.Update();
+			_iterator.Dispose();
+			_delayedOperations.Dispose();
+		}
+
+		internal override void Lock()
+		{
+			_iterator.Lock();
+		}
+
+		internal override void Unlock()
+		{
+			_iterator.Unlock();
 		}
 
 		internal ref TComponent AddComponent(uint entityId)
@@ -110,10 +123,18 @@ namespace npg.tomatoecs.Components
 			}
 
 			_componentCount++;
-			_entityBuffer.Invalidate();
 
 			SetComponent(entityId, componentId);
-			InvokeAdded(entityId);
+			_added.Add(entityId);
+			if (_iterator.IsLocked)
+			{
+				_delayedOperations.Add(entityId);
+			}
+			else
+			{
+				InvokeAdded(entityId);
+			}
+
 			return ref _components[componentId];
 		}
 
@@ -126,17 +147,22 @@ namespace npg.tomatoecs.Components
 				return;
 			}
 
+			if (_iterator.IsLocked)
+			{
+				_delayedOperations.Remove(entityId);
+				return;
+			}
+
 			_componentCount--;
-			_entityBuffer.Invalidate();
 
 			MoveComponent(_componentCount, componentId);
 			ClearComponent(_componentCount, entityId);
+			_removed.Add(entityId);
 			InvokeRemoved(entityId);
 		}
 
 		internal ref TComponent GetComponent(uint entityId)
 		{
-			Version++;
 			return ref _components[GetComponentId(entityId)];
 		}
 
@@ -145,10 +171,8 @@ namespace npg.tomatoecs.Components
 			return GetComponentId(entityId) >= 0;
 		}
 
-		internal void FillComponents(ref TComponent[] components, ref uint[] entityIds, ref int[] componentIndexes)
+		internal void CopyTo(ref TComponent[] components, ref uint[] entityIds, ref int[] componentIndexes)
 		{
-			Version = 0;
-
 			var componentsLength = _components.Length;
 			if (components == null || componentsLength != components.Length)
 			{
@@ -184,7 +208,7 @@ namespace npg.tomatoecs.Components
 		{
 			_components[targetComponentId] = _components[sourceComponentId];
 
-			var sourceEntityId = _componentToEntityId[sourceComponentId] - 1;
+			var sourceEntityId = GetEntityId(sourceComponentId);
 			SetComponent(sourceEntityId, targetComponentId);
 		}
 
@@ -209,27 +233,6 @@ namespace npg.tomatoecs.Components
 			}
 
 			Array.Resize(ref _entityIdToComponent, newSize);
-		}
-
-		public struct Enumerator
-		{
-			private readonly TComponent[] _components;
-			private readonly int _count;
-			private int _index;
-
-			public Enumerator(TComponent[] components, int count)
-			{
-				_components = components;
-				_count = count;
-				_index = -1;
-			}
-
-			public TComponent Current => _components[_index];
-
-			public bool MoveNext()
-			{
-				return ++_index < _count;
-			}
 		}
 	}
 }

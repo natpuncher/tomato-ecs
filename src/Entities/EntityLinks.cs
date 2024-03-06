@@ -59,7 +59,7 @@ namespace npg.tomatoecs.Entities
 			{
 				newSize <<= 1;
 			}
-		
+
 			Array.Resize(ref _links, newSize);
 		}
 	}

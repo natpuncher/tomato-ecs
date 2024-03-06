@@ -48,6 +48,7 @@ namespace npg.tomatoecs.Entities
 				{
 					continue;
 				}
+
 				var internalLink = GetLinks(index);
 				if (internalLink.Has(id))
 				{
@@ -73,7 +74,7 @@ namespace npg.tomatoecs.Entities
 		{
 			return GetLinks(id1).Has(id2);
 		}
-	
+
 		private void Resize(uint id)
 		{
 			if (id < _links.Length)
@@ -86,7 +87,7 @@ namespace npg.tomatoecs.Entities
 			{
 				newSize <<= 1;
 			}
-		
+
 			Array.Resize(ref _links, newSize);
 		}
 
@@ -96,6 +97,7 @@ namespace npg.tomatoecs.Entities
 			{
 				links?.Clear();
 			}
+
 			_links.Clear();
 		}
 	}

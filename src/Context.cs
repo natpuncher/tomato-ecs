@@ -44,7 +44,7 @@ namespace npg.tomatoecs
 		{
 			return _entities.Raw;
 		}
-	
+
 		public Components<TComponent> GetComponents<TComponent>() where TComponent : struct
 		{
 			var type = typeof(TComponent);
@@ -59,7 +59,7 @@ namespace npg.tomatoecs
 			return newComponents;
 		}
 
-		public ReactiveComponents<TComponent> GetReactiveComponents<TComponent>() where TComponent : struct, IEquatable<TComponent>
+		public ReactiveComponents<TComponent> GetReactiveComponents<TComponent>() where TComponent : struct, IReactiveComponent<TComponent>
 		{
 			var type = typeof(TComponent);
 			if (_reactiveComponentsMap.TryGetValue(type, out var reactiveComponents))
@@ -67,23 +67,28 @@ namespace npg.tomatoecs
 				return (ReactiveComponents<TComponent>)reactiveComponents;
 			}
 
-			var newComponents = new ReactiveComponents<TComponent>(GetComponents<TComponent>(), _entities, _entities.Capacity);
+			var newComponents = new ReactiveComponents<TComponent>(GetComponents<TComponent>(), _entities);
 			_reactiveComponentsMap.Add(type, newComponents);
 			_reactiveComponents.Add(newComponents);
 			return newComponents;
 		}
 
-		public void UpdateReactiveComponents()
+		public void Update()
 		{
+			for (var i = 0; i < _components.Count; i++)
+			{
+				_components[i].Update();
+			}
+
 			for (var i = 0; i < _reactiveComponents.Count; i++)
 			{
 				_reactiveComponents[i].Update();
 			}
 		}
 
-		public GroupBuilder GetGroup<TComponent>() where TComponent : struct
+		public GroupBuilder GetGroup()
 		{
-			return _groupProvider.GetGroupBuilder<TComponent>();
+			return _groupProvider.GetGroupBuilder();
 		}
 
 		public void Dispose()

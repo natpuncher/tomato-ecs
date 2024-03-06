@@ -1,13 +1,12 @@
 using System;
-using System.Collections.Generic;
 using npg.tomatoecs.Entities;
 
 namespace npg.tomatoecs.Components
 {
 	public sealed class ReactiveComponents<TComponent> : InternalReactiveComponents, IDisposable
-		where TComponent : struct, IEquatable<TComponent>
+		where TComponent : struct, IReactiveComponent<TComponent>
 	{
-		private readonly EqualityComparer<TComponent> _equalityComparer = EqualityComparer<TComponent>.Default;
+		private readonly ComponentComparer<TComponent> _componentComparer = new();
 		private readonly Components<TComponent> _actualComponents;
 		private readonly Entities.Entities _entities;
 
@@ -16,75 +15,23 @@ namespace npg.tomatoecs.Components
 		private int[] _entityIdToComponent;
 		private int _componentsCount;
 
-		private readonly List<Entity> _added;
-		private readonly List<Entity> _changed;
-		private readonly List<Entity> _removed;
-
-		private int _version;
-
 		internal Components<TComponent> ActualComponents => _actualComponents;
 
-		internal ReactiveComponents(Components<TComponent> actualComponents, Entities.Entities entities, int capacity)
+		internal ReactiveComponents(Components<TComponent> actualComponents, Entities.Entities entities)
 		{
 			_actualComponents = actualComponents;
 			_entities = entities;
-			_added = new List<Entity>(capacity);
-			_changed = new List<Entity>(capacity);
-			_removed = new List<Entity>(capacity);
-
-			_actualComponents.OnAdded += OnAdded;
-			_actualComponents.OnRemoved += OnRemoved;
 
 			Update();
 		}
 
-		public List<Entity> Added()
+		public ChangedEnumerator Changed()
 		{
-			return _added;
-		}
-
-		public List<Entity> Changed()
-		{
-			if (_version == _actualComponents.Version)
-			{
-				return _changed;
-			}
-
-			_version = _actualComponents.Version;
-
-			_changed.Clear();
-			for (var i = 0; i < _componentsCount; i++)
-			{
-				if (!WasComponent(i))
-				{
-					continue;
-				}
-
-				var entityId = _componentToEntityId[i] - 1;
-				if (!_actualComponents.HasComponent(entityId))
-				{
-					continue;
-				}
-
-				if (_equalityComparer.Equals(_previousComponents[i], _actualComponents.GetComponent(entityId)))
-				{
-					continue;
-				}
-
-				_changed.Add(_entities.GetEntity(entityId));
-			}
-
-			return _changed;
-		}
-
-		public List<Entity> Removed()
-		{
-			return _removed;
+			return new ChangedEnumerator(this, _entities);
 		}
 
 		public void Dispose()
 		{
-			Clear();
 			_previousComponents.Clear();
 			_componentToEntityId.Clear();
 			_entityIdToComponent.Clear();
@@ -97,22 +44,44 @@ namespace npg.tomatoecs.Components
 
 		internal override void Update()
 		{
-			Clear();
 			_componentsCount = _actualComponents.Count;
 			if (_componentsCount == 0)
 			{
 				return;
 			}
 
-			_actualComponents.FillComponents(ref _previousComponents, ref _componentToEntityId, ref _entityIdToComponent);
+			_actualComponents.CopyTo(ref _previousComponents, ref _componentToEntityId, ref _entityIdToComponent);
 		}
 
-		private void Clear()
+		private bool HasChanges(int index)
 		{
-			_version = -1;
-			_added.Clear();
-			_changed.Clear();
-			_removed.Clear();
+			if (!WasComponent(index))
+			{
+				return false;
+			}
+
+			var entityId = _componentToEntityId[index] - 1;
+			if (!_actualComponents.HasComponent(entityId))
+			{
+				return false;
+			}
+
+			return _componentComparer.HasChanges(_previousComponents[index], _actualComponents.GetComponent(entityId));
+		}
+
+		private uint GetEntityId(int index)
+		{
+			return _componentToEntityId[index] - 1;
+		}
+
+		private void Lock()
+		{
+			_actualComponents.Lock();
+		}
+
+		private void Unlock()
+		{
+			_actualComponents.Unlock();
 		}
 
 		private int GetComponentId(uint entityId)
@@ -125,14 +94,66 @@ namespace npg.tomatoecs.Components
 			return _componentToEntityId[index] > 0;
 		}
 
-		private void OnAdded(uint entityId)
+		public readonly struct ChangedEnumerator
 		{
-			_added.Add(_entities.GetEntity(entityId));
+			private readonly ReactiveComponents<TComponent> _reactiveComponents;
+			private readonly Entities.Entities _entities;
+
+			internal ChangedEnumerator(ReactiveComponents<TComponent> reactiveComponents, Entities.Entities entities)
+			{
+				_reactiveComponents = reactiveComponents;
+				_entities = entities;
+			}
+
+			public Enumerator GetEnumerator()
+			{
+				return new Enumerator(_reactiveComponents, _entities);
+			}
+
+			public struct Enumerator : IDisposable
+			{
+				private readonly ReactiveComponents<TComponent> _reactiveComponents;
+				private readonly Entities.Entities _entities;
+				private readonly int _componentCount;
+				private int _index;
+
+				internal Enumerator(ReactiveComponents<TComponent> reactiveComponents, Entities.Entities entities)
+				{
+					_reactiveComponents = reactiveComponents;
+					_entities = entities;
+					_index = -1;
+					_reactiveComponents.Lock();
+					_componentCount = _reactiveComponents._componentsCount;
+				}
+
+				public Entity Current => _entities.GetEntity(_reactiveComponents.GetEntityId(_index));
+
+				public bool MoveNext()
+				{
+					while (++_index < _componentCount)
+					{
+						if (_reactiveComponents.HasChanges(_index))
+						{
+							break;
+						}
+					}
+
+					return _index < _componentCount;
+				}
+
+				public void Dispose()
+				{
+					_reactiveComponents.Unlock();
+				}
+			}
 		}
 
-		private void OnRemoved(uint entityId)
+		private class ComponentComparer<TComponent> where TComponent : struct, IReactiveComponent<TComponent>
 		{
-			_removed.Add(_entities.GetEntity(entityId));
+			public bool HasChanges(TComponent first, TComponent second)
+			{
+				return !first.Equals(second);
+			}
 		}
 	}
 }

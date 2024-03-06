@@ -23,6 +23,14 @@ Ecs framework for Unity mostly for tomato games.
 ## Usage
 
 ```c#
+public void UpdateEcs(double delta)
+{
+	_battleContext.DeltaTime = delta;
+	_battleContext.Update();
+	_battleEcsRunner.Execute();
+}
+```
+```c#
 public struct DamageComponent
 {
     public int Amount;
@@ -31,73 +39,50 @@ public struct DamageComponent
 }
 ```
 ```c#
-public sealed class DamageApplySystem : IInitializeSystem, IExecuteSystem
+public class TimerSystem : IInitializeSystem, IExecuteSystem
 {
 	private readonly BattleContext _battleContext;
-	private Components<HealthComponent> _health;
-	private Components<DeadComponent> _dead;
-	private Components<DamageComponent> _damage;
-	private Components<DamageDealtComponent> _damageDealt;
+
+	private Components<TimerComponent> _timer;
+	private Components<TimerExpiredComponent> _timerExpired;
+	private Components<CleanupAfterTimerComponent> _cleanupAfterTimer;
 	private Components<CleanupComponent> _cleanup;
 
-	public DamageApplySystem(BattleContext battleContext)
+	public TimerSystem(BattleContext battleContext)
 	{
 		_battleContext = battleContext;
 	}
 
 	public void Initialize()
 	{
-		_damage = _battleContext.GetComponents<DamageComponent>();
-
-		_health = _battleContext.GetComponents<HealthComponent>();
-		_dead = _battleContext.GetComponents<DeadComponent>();
-		_damageDealt = _battleContext.GetComponents<DamageDealtComponent>();
+		_timer = _battleContext.GetComponents<TimerComponent>();
+		_timerExpired = _battleContext.GetComponents<TimerExpiredComponent>();
+		_cleanupAfterTimer = _battleContext.GetComponents<CleanupAfterTimerComponent>();
 		_cleanup = _battleContext.GetComponents<CleanupComponent>();
 	}
 
 	public void Execute()
 	{
-		foreach (var damageEntity in _damage.GetEntities())
+		foreach (var timerEntity in _timer.GetEntities())
 		{
-			ref var damageComponent = ref damageEntity.GetComponent(_damage);
-			var targetEntity = _battleContext.GetEntity(damageComponent.Target);
-
-			if (!IsValidTarget(targetEntity))
+			ref var timer = ref timerEntity.GetComponent(_timer);
+			timer.Current += _battleContext.DeltaTime;
+			if (timer.Current < timer.Max)
 			{
 				continue;
 			}
 
-			ref var targetHealthComponent = ref targetEntity.GetComponent(_health);
-			targetHealthComponent.Current -= damageComponent.Amount;
-
-			CreateDamageDealtEvent(damageComponent);
+			timerEntity.RemoveComponent(_timer);
+			timerEntity.AddComponent(_timerExpired);
+			if (timerEntity.HasComponent(_cleanupAfterTimer))
+			{
+				timerEntity.AddComponent(_cleanup);
+			}
 		}
-	}
-
-	private void CreateDamageDealtEvent(DamageComponent damageComponent)
-	{
-		var damageDealtEntity = _battleContext.CreateEntity();
-		damageDealtEntity.AddComponent(_cleanup);
-		ref var damageDealtComponent = ref damageDealtEntity.AddComponent(_damageDealt);
-		damageDealtComponent.Source = damageComponent.Source;
-		damageDealtComponent.Target = damageComponent.Target;
-		damageDealtComponent.Amount = damageComponent.Amount;
-	}
-
-	private bool IsValidTarget(Entity entity)
-	{
-		return entity.HasComponent(_health) && !entity.HasComponent(_dead);
 	}
 }
 ```
 ```c#
-public void UpdateEcs(double delta)
-{
-	_battleContext.DeltaTime = delta;
-	_battleContext.UpdateReactiveComponents();
-	_battleEcsRunner.Execute();
-}
-
 public class UpdateUnitHealthSystem : IInitializeSystem, IExecuteSystem
 {
 	private readonly BattleContext _battleContext;
@@ -130,9 +115,11 @@ public class UpdateUnitHealthSystem : IInitializeSystem, IExecuteSystem
 public sealed class ReadyToAttackSystem : IInitializeSystem, IExecuteSystem
 {
 	private readonly BattleContext _battleContext;
+	private Components<ReadyToAttackComponent> _readyToAttack;
+	private Components<AttackDamageComponent> _attackDelay;
 	
 	private Group _expiredActionCooldowns;
-
+    
 	public ReadyToAttackSystem(BattleContext battleContext)
 	{
 		_battleContext = battleContext;
@@ -140,13 +127,25 @@ public sealed class ReadyToAttackSystem : IInitializeSystem, IExecuteSystem
 
 	public void Initialize()
 	{
-		_expiredActionCooldowns = _battleContext.GetGroup<UnitActionCooldownComponent>().Include<TimerExpiredComponent>().Build();
+		_expiredActionCooldowns = _battleContext.GetGroup().
+		All<UnitActionCooldownComponent>().
+		All<TimerExpiredComponent>().
+		Build();
+        
+		_attackDelay = _battleContext.GetComponents<AttackDamageComponent>();
+		_readyToAttack = _battleContext.GetComponents<ReadyToAttackComponent>();
 	}
 
 	public void Execute()
 	{
-		foreach (var cooldownEntity in _expiredActionCooldowns.GetEntities())
+		foreach (var cooldownEntity in _expiredActionCooldowns)
 		{
+			foreach (var unitEntity in _attackDelay.GetLinkedEntities(cooldownEntity))
+			{
+				unitEntity.AddComponent(_readyToAttack);
+			}
+
+			cooldownEntity.Destroy();
 		}
 	}
 }
@@ -172,7 +171,7 @@ foreach(var evadeAbilityEntity in evade.GetLinkedEntities(unitEntity))
 
 	public void Execute()
 	{
-		foreach (var damageDealt in _damageDealt)
+		foreach (ref var damageDealt in _damageDealt)
 		{
 			CreateView(damageDealt.Source, damageDealt.Target, damageDealt.Amount);
 		}
@@ -185,21 +184,31 @@ foreach(var evadeAbilityEntity in evade.GetLinkedEntities(unitEntity))
 	public void Initialize()
 	{
 		_damage = _battleContext.GetComponents<DamageComponent>();
-
 		_armor = _battleContext.GetComponents<ArmorStatComponent>();
 	}
 
 	public void Execute()
 	{
-		foreach (var damageEntity in _damage.GetEntities())
+		foreach (ref var damageComponent in _damage)
 		{
-			ref var damageComponent = ref damageEntity.GetComponent(_damage);
 			var targetEntity = _battleContext.GetEntity(damageComponent.Target);
 
 			var armor = 0;
-			foreach (var armorComponent in _armor.Linked(targetEntity))
+			foreach (ref var armorComponent in _armor.LinkedTo(targetEntity))
 			{
 				armor += armorComponent.Amount;
+			}
+
+			if (armor == 0)
+			{
+				continue;
+			}
+			
+			var reducedAmount = (int)(BattleMath.ArmorDamageReduction(armor) * damageComponent.Amount);
+			damageComponent.Amount -= reducedAmount;
+			if (damageComponent.Amount < 0)
+			{
+				damageComponent.Amount = 0;
 			}
 		}
 	}
